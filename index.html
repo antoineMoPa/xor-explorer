@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+   document, body, html{
+     font-family: sans-serif;
+     padding:0;
+     margin:0;
+     max-height:100%;
+     max-width:100%;
+     overflow:hidden;
+   }
+   h1{
+     font-weight:300;
+     padding:0 10px;
+     line-height:20px;
+   }
+   .navigation{
+     width:300px;
+     height:100%;
+     position:absolute;
+     top:0;
+     left:0;
+     background:#fff;
+     box-shadow: 0 0 10px rgba(0,0,0,0.3);
+     z-index:10;
+   }
+   input{
+     width:calc(100% - 40px);
+     margin:10px;
+   }
+   label{
+     margin-left:10px;
+   }
+   button{
+     width:calc(100% - 20px);
+     margin:5px 10px;
+     font-size:10px;
+   }
+   canvas{
+     position:absolute;
+     top:0;
+     left:300px;
+   }
+   .info{
+     margin-left:10px;
+     color:#555;
+     font-size:12px;
+   }
+   label{
+     font-size:10px;
+   }
+   .symbol{
+     font-weight:700;
+     font-style:italic;
+     padding:0 2px;
+   }
+   .error{
+     color:#f33;
+     font-size:10px;
+     padding:0 10px;
+   }
+  </style>
+
+</head>
+<body>
+  <div class="navigation">
+    <h1>xor-explorer</h1>
+    <label>Color pixel at position (<span class="symbol">i</span>,<span class="symbol">j</span>) and time <span class="symbol">t</span> if :</label>
+    <input onkeyup="new_formula(event.target.value)"
+           value="(i ^ j) - i < 1">
+
+    <div class="error"></div>
+
+    <button onmouseup="set_formula('(i ^ j) - i < 1')">Default</button>
+    <button onmouseup="set_formula('(i ^ j) - i < t % 5000')">Default (with time)</button>
+    <button onmouseup="set_formula('(i ^ j) * i < 1 + t % 10000');go_to(-500,0,6)">XOR rocket</button>
+    <button onmouseup="set_formula('(i ^ j) * (i % j) > t')">Lines</button>
+    <button onmouseup="set_formula('(i ^ j) / (i % j) < 1')">Triangles</button>
+    <button onmouseup="set_formula('(i ^ j) / (i + j) < 1')">Sierpinski</button>
+    <button onmouseup="set_formula('(i ^ j) % (j / i) < 1')">Multitexture - origin</button>
+    <button onmouseup="set_formula('(i ^ j) % (j / i) < 1');go_to(2390,34495,6)">Multitexture - city</button>
+    <button onmouseup="set_formula('(i ^ j) % (j / i) < 1');go_to(-4029,-20501,4)">Multitexture - city 2</button>
+    <button onmouseup="set_formula('(i ^ j) % (j / i) < 1');go_to(97,140506,6)">Multitexture - stars</button>
+    <button onmouseup="set_formula('(i ^ j)  == (i/j * t/100 % 1000)');go_to(0,-100,5)">It's alive!</button>
+    <button onmouseup="set_formula('(i ^ j) - i < (j | i & j/2)')">Weird tree</button>
+
+
+
+    <p class="info">
+    </p>
+
+  </div>
+  <canvas class="texplorer"
+          onmousedown="mousedown(event)"
+          onmousemove="mousemove(event)"
+          onmouseup="mouseup(event)"
+          onmouseleave="mouseup(event)"
+          onwheel="wheel(event)"
+  />
+  <script>
+
+   class ShaderSurface{
+     constructor(canvas_el){
+       this.canvas = canvas;
+
+       this.resize_handler();
+       this.init_gl();
+       this.create_shaders();
+       this.custom_float_uniforms = {};
+
+       window.addEventListener("resize", this.resize_handler.bind(this));
+
+       function updater(){
+         try {
+           this.draw();
+         } catch (e) {
+           console.log(e);
+         }
+         window.requestAnimationFrame(updater.bind(this));
+       }
+       this.draw();
+       window.requestAnimationFrame(updater.bind(this));
+     }
+
+     resize_handler(){
+       this.canvas.width = window.innerWidth - 300;
+       this.canvas.height = window.innerHeight;
+     }
+
+     create_shaders(pixel_operation){
+       pixel_operation = pixel_operation || "(i ^ j) % (j / i) < 1";
+       this.fragment_shader = `#version 300 es
+precision highp float;
+
+in vec2 UV;
+out vec4 out_color;
+uniform float time;
+uniform float ratio;
+uniform float offset_i, offset_j, scale;
+
+void main(void){
+  float x = UV.x * ratio;
+  float y = UV.y;
+  vec2 p = vec2(x,y) - 0.5;
+  vec4 col = vec4(0.0);
+
+  float s = 10.0 * pow(2.0, scale);
+
+  int i = int(x * s + offset_i);
+  int j = int(y * s + offset_j);
+  int t = int(time);
+
+  if(${pixel_operation}){
+    col.rgb += 0.8;
+  }
+
+  col.a = 1.0;
+
+  out_color = col;
+}`;
+       this.vertex_shader = `#version 300 es
+layout(location = 0) in vec3 position;
+out vec2 UV;
+out vec3 v_position;
+
+void main(){
+  v_position = position;
+  UV = vec2((position.x+1.0) / 2.0, (position.y + 1.0)/2.0);
+  gl_Position = vec4(v_position.x,v_position.y, 0.0, 1.0);
+}`;
+
+       this.init_program();
+     }
+
+     init_gl(){
+       this.gl = this.canvas.getContext('webgl2');
+       let gl = this.gl;
+       gl.clearColor(0.0, 0.0, 0.0, 1.0);
+       gl.enable(gl.DEPTH_TEST);
+       gl.depthFunc(gl.LEQUAL);
+       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+       // Triangle strip for whole screen square
+       const vertices = [
+         (-1), (-1), 0,
+         (-1), 1, 0,
+         1, (-1), 0,
+         1, 1, 0
+       ];
+
+       const tri = gl.createBuffer();
+       gl.bindBuffer(gl.ARRAY_BUFFER, tri);
+       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+     }
+
+     init_program() {
+       this.compiled = false;
+       let error = document.querySelectorAll(".error")[0];
+       error.innerHTML = "";
+
+       if (this.gl == null) {
+         return;
+       }
+
+       const gl = this.gl;
+
+       // Delete previous program
+       if (typeof gl.program !== 'undefined') {
+         gl.useProgram(gl.program);
+         if (this.fragment_shader_object > -1) {
+           gl.detachShader(gl.program, this.fragment_shader_object);
+         }
+         if (this.vertex_shader_object > -1) {
+           gl.detachShader(gl.program, this.vertex_shader_object);
+         }
+         gl.deleteShader(gl.fragment_shader);
+         gl.deleteShader(gl.vertex_shader);
+         gl.deleteProgram(gl.program);
+       }
+
+       gl.program = gl.createProgram();
+
+       const vertex_shader = add_shader(gl.VERTEX_SHADER, this.vertex_shader);
+       const fragment_shader = add_shader(gl.FRAGMENT_SHADER, this.fragment_shader);
+
+       this.fragment_shader_object = fragment_shader;
+       this.vertex_shader_object = vertex_shader;
+
+       function add_shader(type, content) {
+         const shader = gl.createShader(type);
+         gl.shaderSource(shader, content);
+         gl.compileShader(shader);
+
+         if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+           const err = gl.getShaderInfoLog(shader);
+           let error = document.querySelectorAll(".error")[0];
+           error.innerText = "GLSL error" + err;
+           //error.innerHTML = error.innerHTML.replace("\n", "<br/>");
+         }
+
+         gl.attachShader(gl.program, shader);
+
+         return shader;
+       }
+
+       if (vertex_shader == -1 || fragment_shader == -1) {
+         return;
+       }
+
+       gl.linkProgram(gl.program);
+
+       if (!gl.getProgramParameter(gl.program, gl.LINK_STATUS)) {
+         console.log(gl.getProgramInfoLog(gl.program));
+       }
+
+       gl.useProgram(gl.program);
+
+       const positionAttribute = gl.getAttribLocation(gl.program, 'position');
+
+       gl.enableVertexAttribArray(positionAttribute);
+       gl.vertexAttribPointer(positionAttribute, 3, gl.FLOAT, false, 0, 0);
+       this.compiled = true;
+     }
+
+     draw() {
+       if (!this.compiled) {
+         return;
+       }
+
+       const gl = this.gl;
+
+       if (gl == null || gl.program == null) {
+         return;
+       }
+
+       const timeAttribute = gl.getUniformLocation(gl.program, 'time');
+       gl.uniform1f(timeAttribute, new Date().getTime() % 100000);
+
+       const ratio = this.canvas.width / this.canvas.height;
+
+       const ratioAttribute = gl.getUniformLocation(gl.program, 'ratio');
+       gl.uniform1f(ratioAttribute, ratio);
+
+       for(let name in this.custom_float_uniforms){
+         let value = this.custom_float_uniforms[name];
+         const att = gl.getUniformLocation(gl.program, name);
+         gl.uniform1f(att, value);
+       }
+
+       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+       gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+     }
+   }
+
+   let canvas = document.querySelectorAll("canvas.texplorer")[0];
+   let surface = new ShaderSurface(canvas);
+
+   let info = document.querySelectorAll(".info")[0];
+   let input = document.querySelectorAll("input")[0];
+
+   let offset_i = 0;
+   let offset_j = 0;
+   let scale = 10.0;
+   surface.custom_float_uniforms.offset_i = 0;
+   surface.custom_float_uniforms.offset_j = 0;
+   surface.custom_float_uniforms.scale = scale;
+
+   new_formula(input.value);
+
+   function new_formula(f){
+     surface.create_shaders(f)
+   }
+
+   function set_formula(f){
+     input.value = f;
+     new_formula(f);
+     offset_i = offset_j = 0;
+     surface.custom_float_uniforms.offset_i = offset_i;
+     surface.custom_float_uniforms.offset_j = offset_j;
+     update_info();
+   }
+
+   function go_to(_i, _j, _scale){
+     offset_i = _i;
+     offset_j = _j;
+     scale = _scale;
+     surface.custom_float_uniforms.scale = scale;
+     surface.custom_float_uniforms.offset_i = offset_i;
+     surface.custom_float_uniforms.offset_j = offset_j;
+     this.update_info();
+   }
+
+   // Null if not moving
+   let original_e = null;
+   let original_offset_i = 0;
+   let original_offset_j = 0;
+
+   function mousedown(e){
+     original_e = e;
+     original_offset_i = offset_i;
+     original_offset_j = offset_j;
+   }
+
+   let delta_i = 0;
+   let delta_j = 0;
+
+   function update_info(){
+     info.innerHTML = `x     : ${parseInt(offset_i)}<br/>
+                       y     : ${parseInt(offset_j)}<br/>
+                       scale : ${parseInt(scale)}`;
+   }
+
+   update_info();
+
+   function mousemove(e){
+     if(original_e == null){
+       return;
+     }
+
+     delta_i = -(e.clientX - original_e.clientX);
+     delta_j = (e.clientY - original_e.clientY);
+
+     offset_i = original_offset_i + delta_i * 0.01 * Math.pow(2.0, scale);
+     offset_j = original_offset_j + delta_j * 0.01 * Math.pow(2.0, scale);
+
+     surface.custom_float_uniforms.offset_i = offset_i;
+     surface.custom_float_uniforms.offset_j = offset_j;
+
+     update_info();
+   }
+
+   function mouseup(e){
+     original_e = null;
+     update_info();
+   }
+
+   function wheel(e){
+     scale += e.deltaY * 0.1;
+     surface.custom_float_uniforms.scale = scale;
+     update_info();
+   }
+
+  </script>
+</body>
