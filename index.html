@@ -12,32 +12,55 @@
      overflow:hidden;
    }
    h1{
+     position:absolute;
+     top:10px;
+     left:10px;
+     z-index:1100;
+     background:#000;
+     padding:10px;
+     border-radius:3px;
+     color:#fff;
+   }
+   h1, h2{
      font-weight:300;
-     padding:0 10px;
-     line-height:20px;
+     margin-top:0;
+   }
+   h2{
+     font-size:20px;
    }
    .navigation{
-     width:300px;
-     height:100%;
+     width:100%;
+     overflow:hidden;
      position:absolute;
-     top:0;
-     left:0;
-     background:#fff;
-     box-shadow: 0 0 10px rgba(0,0,0,0.3);
      z-index:10;
+     left:10px;
+     opacity:0.1;
+     transition:all 0.3s;
+     opacity:0;
+     max-height:0;
    }
-   input{
-     width:calc(100% - 40px);
-     margin:10px;
-     font-size:12px;
+   .formula:focus+.navigation{
+     width:100%;
+     height:auto;
+     top:calc(50%);
+     display:block;
+     opacity:1.0;
+     height:400px;
+     max-height:none;
    }
-   label{
-     margin-left:10px;
-     font-size:12px;
+   .navigation-content{
+     color:#333;
+     width:660px;
+     margin:auto;
+     background:#fff;
+     padding:30px;
+     border-radius:3px;
    }
-   button{
-     width:calc(100% - 20px);
-     margin:5px 10px;
+   .navigation-content button{
+     width:200px;
+     display:inline-block;
+     margin:auto;
+     margin-bottom:10px;
      font-size:12px;
      border:none;
      padding:7px;
@@ -50,10 +73,37 @@
    button:active{
      background:#2020b0;
    }
+   .formula{
+     width:calc(50%);
+     margin:10px;
+     padding:15px;
+     background:rgba(255,255,255,0.3);
+     border:none;
+     font-size:20px;
+     position:absolute;
+     top:10px;
+     right:10px;
+     z-index:1000;
+     font-family:monospace;
+     color:rgba(0,0,0,0.4);
+     transition:all 0.3s;
+     text-align:center;
+     border-radius:3px;
+   }
+   .formula:active,.formula:focus{
+     background:rgba(255,255,255,0.9);
+     color:#335;
+     top:calc(50% - 100px);
+     left:calc(25%);
+   }
+   label{
+     margin-left:10px;
+     font-size:12px;
+   }
    canvas{
      position:absolute;
      top:0;
-     left:300px;
+     left:0;
    }
    .info{
      margin-left:10px;
@@ -70,34 +120,44 @@
      font-size:12px;
      padding:0 10px;
    }
+   p.intro{
+     font-size:12px;
+     margin-bottom:0;
+   }
   </style>
 
 </head>
 <body>
+  <h1>xor-explorer</h1>
+  <input onkeyup="new_formula(event.target.value)"
+         class="formula"
+         value="(i ^ j) - i < 1">
   <div class="navigation">
-    <h1>xor-explorer</h1>
-    <label>Color pixel at position (<span class="symbol">i</span>,<span class="symbol">j</span>) and time <span class="symbol">t</span> if :</label>
-    <input onkeyup="new_formula(event.target.value)"
-           value="(i ^ j) - i < 1">
+    <div class="navigation-content">
+      <h2>Introduction</h2>
+      <p class="intro">Your formula colors the pixel at position (<span class="symbol">i</span>,<span class="symbol">j</span>) and time <span class="symbol">t</span> if the condition is true.</p>
+      <br/>
+      <div class="error"></div>
 
-    <div class="error"></div>
+      <button onmousedown="set_formula('(i ^ j) - i < 1')">Default</button>
+      <button onmousedown="set_formula('(i ^ j) - i < t % 5000')">Default (with time)</button>
+      <button onmousedown="set_formula('(i ^ j) * i < 1 + t % 10000');go_to(-500,0,6)">XOR rocket</button>
+      <button onmousedown="set_formula('(i ^ j) * (i % j) > t')">Lines</button>
+      <button onmousedown="set_formula('(i ^ j) / (i % j) < 1')">Triangles</button>
+      <button onmousedown="set_formula('(i ^ j) / (i + j) < 1')">Sierpinski</button>
+      <button onmousedown="set_formula('(i ^ j) % (j / i) < 1')">Multitexture - origin</button>
+      <button onmousedown="set_formula('(i ^ j) % (j / i) < 1');go_to(2390,34495,6)">Multitexture - city</button>
+      <button onmousedown="set_formula('(i ^ j) % (j / i) < 1');go_to(-4029,-20501,4)">Multitexture - city 2</button>
+      <button onmousedown="set_formula('(i ^ j) % (j / i) < 1');go_to(97,140506,6)">Multitexture - stars</button>
+      <button onmousedown="set_formula('(i ^ j)  == (i/j * t/100 % 1000)');go_to(0,-100,5)">It's alive!</button>
+      <button onmousedown="set_formula('(i ^ j) - i < (j | i & j/2)')">Weird tree</button>
 
-    <button onmouseup="set_formula('(i ^ j) - i < 1')">Default</button>
-    <button onmouseup="set_formula('(i ^ j) - i < t % 5000')">Default (with time)</button>
-    <button onmouseup="set_formula('(i ^ j) * i < 1 + t % 10000');go_to(-500,0,6)">XOR rocket</button>
-    <button onmouseup="set_formula('(i ^ j) * (i % j) > t')">Lines</button>
-    <button onmouseup="set_formula('(i ^ j) / (i % j) < 1')">Triangles</button>
-    <button onmouseup="set_formula('(i ^ j) / (i + j) < 1')">Sierpinski</button>
-    <button onmouseup="set_formula('(i ^ j) % (j / i) < 1')">Multitexture - origin</button>
-    <button onmouseup="set_formula('(i ^ j) % (j / i) < 1');go_to(2390,34495,6)">Multitexture - city</button>
-    <button onmouseup="set_formula('(i ^ j) % (j / i) < 1');go_to(-4029,-20501,4)">Multitexture - city 2</button>
-    <button onmouseup="set_formula('(i ^ j) % (j / i) < 1');go_to(97,140506,6)">Multitexture - stars</button>
-    <button onmouseup="set_formula('(i ^ j)  == (i/j * t/100 % 1000)');go_to(0,-100,5)">It's alive!</button>
-    <button onmouseup="set_formula('(i ^ j) - i < (j | i & j/2)')">Weird tree</button>
-
-    <p class="info">
-    </p>
-
+      <p class="info">
+      </p>
+      <p>
+        To save a picture, you can right click the image and save as.
+      </p>
+    </div>
   </div>
   <canvas class="texplorer"
           onmousedown="mousedown(event)"
@@ -132,7 +192,7 @@
      }
 
      resize_handler(){
-       this.canvas.width = window.innerWidth - 300;
+       this.canvas.width = window.innerWidth;
        this.canvas.height = window.innerHeight;
      }
 
@@ -372,7 +432,7 @@ void main(){
    update_info();
 
    function get_mouse_i(e){
-     return (e.clientX - 300) / canvas.height * (10.0 * Math.pow(2.0, scale))
+     return (e.clientX) / canvas.height * (10.0 * Math.pow(2.0, scale))
           + offset_i;
    }
 
@@ -416,7 +476,7 @@ void main(){
      offset_j += mouse_j;
 
      let s0 = scale;
-     scale += e.deltaY * 0.1;
+     scale += Math.sign(e.deltaY) * 0.3;
      let s1 = scale;
      surface.custom_float_uniforms.scale = scale;
 
