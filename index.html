@@ -39,6 +39,16 @@
      width:calc(100% - 20px);
      margin:5px 10px;
      font-size:12px;
+     border:none;
+     padding:7px;
+     background:#3030c0;
+     color:#ffffff;
+     cursor:pointer;
+     border-radius:3px;
+     transition:all 0.1s;
+   }
+   button:active{
+     background:#2020b0;
    }
    canvas{
      position:absolute;
@@ -84,8 +94,6 @@
     <button onmouseup="set_formula('(i ^ j) % (j / i) < 1');go_to(97,140506,6)">Multitexture - stars</button>
     <button onmouseup="set_formula('(i ^ j)  == (i/j * t/100 % 1000)');go_to(0,-100,5)">It's alive!</button>
     <button onmouseup="set_formula('(i ^ j) - i < (j | i & j/2)')">Weird tree</button>
-
-
 
     <p class="info">
     </p>
@@ -138,6 +146,7 @@ out vec4 out_color;
 uniform float time;
 uniform float ratio;
 uniform float offset_i, offset_j, scale;
+uniform float cursor_i, cursor_j;
 
 void main(void){
   float x = UV.x * ratio;
@@ -147,13 +156,22 @@ void main(void){
 
   float s = 10.0 * pow(2.0, scale);
 
-  int i = int(x * s + offset_i);
-  int j = int(y * s + offset_j);
+  float fi = x * s + offset_i;
+  float fj = y * s + offset_j;
+
+  int i = int(fi);
+  int j = int(fj);
   int t = int(time);
 
   if(${pixel_operation}){
     col.rgb += 0.8;
   }
+
+  // debug cursor
+  //if(length(vec2(cursor_i,cursor_j) - vec2(fi,fj)) < 0.01 * s){
+  //  col.r += 1.0;
+  //  col.gb -= 0.8;
+  //}
 
   col.a = 1.0;
 
@@ -353,13 +371,28 @@ void main(){
 
    update_info();
 
+   function get_mouse_i(e){
+     return (e.clientX - 300) / canvas.height * (10.0 * Math.pow(2.0, scale))
+          + offset_i;
+   }
+
+   function get_mouse_j(e){
+     return (canvas.height - e.clientY)/canvas.height * (10.0 * Math.pow(2.0, scale))
+          + offset_j;
+   }
+
    function mousemove(e){
+     // Debug cursor position
+     surface.custom_float_uniforms.cursor_i = get_mouse_i(e);
+     surface.custom_float_uniforms.cursor_j = get_mouse_j(e);
+
      if(original_e == null){
+       // Not dragging
        return;
      }
 
-     delta_i = -(e.clientX - original_e.clientX);
-     delta_j = (e.clientY - original_e.clientY);
+     delta_i = -(e.clientX - original_e.clientX) * 1000.0/canvas.height;
+     delta_j =  (e.clientY - original_e.clientY) * 1000.0/canvas.height;
 
      offset_i = original_offset_i + delta_i * 0.01 * Math.pow(2.0, scale);
      offset_j = original_offset_j + delta_j * 0.01 * Math.pow(2.0, scale);
@@ -376,8 +409,23 @@ void main(){
    }
 
    function wheel(e){
+     mouse_i = get_mouse_i(e);
+     mouse_j = get_mouse_j(e);
+
+     offset_i += mouse_i;
+     offset_j += mouse_j;
+
+     let s0 = scale;
      scale += e.deltaY * 0.1;
+     let s1 = scale;
      surface.custom_float_uniforms.scale = scale;
+
+     offset_i += mouse_i - get_mouse_i(e);
+     offset_j += mouse_j - get_mouse_j(e);
+
+     surface.custom_float_uniforms.offset_i = offset_i;
+     surface.custom_float_uniforms.offset_j = offset_j;
+
      update_info();
    }
 
