@@ -28,6 +28,28 @@
    h2{
      font-size:20px;
    }
+   .formula{
+     width:calc(50%);
+     margin:10px;
+     padding:15px;
+     background:rgba(255,255,255,0.3);
+     border:none;
+     font-size:20px;
+     position:absolute;
+     top:10px;
+     right:10px;
+     z-index:1000;
+     font-family:monospace;
+     color:rgba(0,0,0,0.4);
+     transition:all 0.3s;
+     text-align:center;
+     border-radius:3px;
+   }
+   .formula:active,.formula:focus{
+     background:rgba(255,255,255,0.9);
+     color:#335;
+     left:calc(25%);
+   }
    .navigation{
      width:100%;
      overflow:hidden;
@@ -39,10 +61,11 @@
      opacity:0;
      max-height:0;
    }
+   /* When formula is focussed, open navigation */
    .formula:focus+.navigation{
      width:100%;
      height:auto;
-     top:calc(50%);
+     top:100px;
      display:block;
      opacity:1.0;
      height:400px;
@@ -73,29 +96,7 @@
    button:active{
      background:#2020b0;
    }
-   .formula{
-     width:calc(50%);
-     margin:10px;
-     padding:15px;
-     background:rgba(255,255,255,0.3);
-     border:none;
-     font-size:20px;
-     position:absolute;
-     top:10px;
-     right:10px;
-     z-index:1000;
-     font-family:monospace;
-     color:rgba(0,0,0,0.4);
-     transition:all 0.3s;
-     text-align:center;
-     border-radius:3px;
-   }
-   .formula:active,.formula:focus{
-     background:rgba(255,255,255,0.9);
-     color:#335;
-     top:calc(50% - 100px);
-     left:calc(25%);
-   }
+
    label{
      margin-left:10px;
      font-size:12px;
@@ -104,6 +105,10 @@
      position:absolute;
      top:0;
      left:0;
+     cursor:crosshair;
+   }
+   canvas:active{
+     cursor: move;
    }
    .info{
      margin-left:10px;
@@ -176,15 +181,17 @@
        this.init_gl();
        this.create_shaders();
        this.custom_float_uniforms = {};
+       this.custom_float_targets = {};
 
        window.addEventListener("resize", this.resize_handler.bind(this));
 
-       function updater(){
+       function updater(timestamp){
          try {
            this.draw();
          } catch (e) {
            console.log(e);
          }
+         this.update_values(timestamp);
          window.requestAnimationFrame(updater.bind(this));
        }
        this.draw();
@@ -340,6 +347,50 @@ void main(){
        this.compiled = true;
      }
 
+     update_values(timestamp){
+       let gl = this.gl;
+       this.last_timestamp = this.last_timestamp || timestamp - 0.1;
+       let elapsed = timestamp - this.last_timestamp;
+       for(let name in this.custom_float_uniforms){
+         if (name in this.custom_float_targets) {
+           if (this.custom_float_targets[name] == null) {
+             // it was set but target was reached and we set to null
+             continue;
+           }
+
+           if (this.custom_float_targets[name].start == undefined) {
+             this.custom_float_targets[name].start = timestamp;
+             this.custom_float_targets[name].initial_value = this.custom_float_uniforms[name];
+           }
+
+           let initial_value = this.custom_float_targets[name].initial_value;
+
+           let target = this.custom_float_targets[name].target_value;
+           let duration = 200;
+           let f = (timestamp - this.custom_float_targets[name].start)/duration;
+           f = 1.0 - Math.pow(1.0 - f, 2.0);
+           let value = (1.0-f) * initial_value + (f) * target;
+
+           if (this.custom_float_targets[name].on_update) {
+             this.custom_float_targets[name].on_update(value);
+           }
+
+           if (f > 0.99) {
+             if (this.custom_float_targets[name].on_update) {
+               this.custom_float_targets[name].on_update(target);
+             }
+             this.custom_float_targets[name] = null;
+             this.custom_float_uniforms[name] = target;
+           }
+
+           const att = gl.getUniformLocation(gl.program, name);
+           gl.uniform1f(att, value);
+           this.custom_float_uniforms[name] = value;
+         }
+       }
+       this.last_timestamp = timestamp;
+     }
+
      draw() {
        if (!this.compiled) {
          return;
@@ -431,14 +482,18 @@ void main(){
 
    update_info();
 
-   function get_mouse_i(e){
-     return (e.clientX) / canvas.height * (10.0 * Math.pow(2.0, scale))
-          + offset_i;
+   function get_mouse_i(e, _scale, _offset_i){
+     _scale = _scale || scale;
+     _offset_i = _offset_i || offset_i;
+     return (e.clientX) / canvas.height * (10.0 * Math.pow(2.0, _scale))
+          + _offset_i;
    }
 
-   function get_mouse_j(e){
-     return (canvas.height - e.clientY)/canvas.height * (10.0 * Math.pow(2.0, scale))
-          + offset_j;
+   function get_mouse_j(e, _scale, _offset_j){
+     _scale = _scale || scale;
+     _offset_j = _offset_j || offset_j;
+     return (canvas.height - e.clientY)/canvas.height * (10.0 * Math.pow(2.0, _scale))
+          + _offset_j;
    }
 
    function mousemove(e){
@@ -459,7 +514,6 @@ void main(){
 
      surface.custom_float_uniforms.offset_i = offset_i;
      surface.custom_float_uniforms.offset_j = offset_j;
-
      update_info();
    }
 
@@ -476,15 +530,30 @@ void main(){
      offset_j += mouse_j;
 
      let s0 = scale;
-     scale += Math.sign(e.deltaY) * 0.3;
+     scale += Math.sign(e.deltaY) * 0.7;
      let s1 = scale;
-     surface.custom_float_uniforms.scale = scale;
 
+     // Keep current value for animation
+     let anim_offset_i = offset_i;
+     let anim_offset_j = offset_j;
+
+     // This is the target offset after the animation
      offset_i += mouse_i - get_mouse_i(e);
      offset_j += mouse_j - get_mouse_j(e);
 
-     surface.custom_float_uniforms.offset_i = offset_i;
-     surface.custom_float_uniforms.offset_j = offset_j;
+     // Animate scale and animate position based on scale
+     surface.custom_float_targets.scale = {
+       target_value: scale,
+       on_update: function(scale_value) {
+         scale = scale_value;
+         offset_i =
+           surface.custom_float_uniforms.offset_i =
+             anim_offset_i + mouse_i - get_mouse_i(e, scale_value, anim_offset_i);
+         offset_j =
+           surface.custom_float_uniforms.offset_j =
+             anim_offset_j + mouse_j - get_mouse_j(e, scale_value, anim_offset_j);
+       }
+     };
 
      update_info();
    }
