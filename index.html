@@ -37,7 +37,7 @@
      font-size:20px;
      position:absolute;
      top:10px;
-     right:10px;
+     left:calc(25%);
      z-index:1000;
      font-family:monospace;
      color:rgba(0,0,0,0.4);
@@ -48,7 +48,6 @@
    .formula:active,.formula:focus{
      background:rgba(255,255,255,0.9);
      color:#335;
-     left:calc(25%);
    }
    .navigation{
      width:100%;
@@ -136,7 +135,7 @@
   <h1>xor-explorer</h1>
   <input onkeyup="new_formula(event.target.value)"
          class="formula"
-         value="(i ^ j) - i < 1">
+         value="set_formula('(i ^ j) % (j / i) < 1')">
   <div class="navigation">
     <div class="navigation-content">
       <h2>Introduction</h2>
@@ -144,8 +143,8 @@
       <br/>
       <div class="error"></div>
 
-      <button onmousedown="set_formula('(i ^ j) - i < 1')">Default</button>
-      <button onmousedown="set_formula('(i ^ j) - i < t % 5000')">Default (with time)</button>
+      <button onmousedown="set_formula('(i ^ j) - i < 1')">Square-Tile-Fractal</button>
+      <button onmousedown="set_formula('(i ^ j) - i < t % 5000')">Square-Tile-Fractal (with time)</button>
       <button onmousedown="set_formula('(i ^ j) * i < 1 + t % 10000');go_to(-500,0,6)">XOR rocket</button>
       <button onmousedown="set_formula('(i ^ j) * (i % j) > t')">Lines</button>
       <button onmousedown="set_formula('(i ^ j) / (i % j) < 1')">Triangles</button>
